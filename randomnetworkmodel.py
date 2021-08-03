@@ -58,26 +58,56 @@ def get_randomnetwork(n, c, r):
     return get_Gabriel_graph(get_rwpoints(n, c, r))
 
 
-def betweenness_centrality_impact(G):
+def betweenness_impact(G, weight='weight'):
     """
     :param G:
     :return: dict of betweenness centrality impacts
     """
-
-    bc = np.mean(list(nx.edge_betweenness_centrality(G, weight='weight').values()))
+    bc = list(nx.edge_betweenness_centrality(G, weight=weight).values())
+    meanbc = sum(bc) / len(bc)
     bci = {}
     Gtemp = G.copy(as_view=False)
-    for u, v in G.edges():
-        Gtemp.clear_edges()
-        edges = [(x, y, d['weight']) for x, y, d in G.edges(data=True) if (x, y) != (u, v)]
-        Gtemp.add_weighted_edges_from(edges)
-        gGe = np.mean(list(nx.edge_betweenness_centrality(Gtemp, weight='weight').values()))
-        delta = 1 - gGe / bc
-        bci.update({(u, v): delta})
+    for u, v, d in G.edges(data=True):
+        Gtemp.remove_edge(u, v)
+        # edges = [(x, y, d['weight']) for x, y, d in G.edges(data=True) if (x, y) != (u, v)]
+        # Gtemp.add_weighted_edges_from(edges)
+        gGe = np.mean(list(nx.edge_betweenness_centrality(Gtemp, weight=weight).values()))
+        delta1 = 1 - gGe / meanbc
 
-    return bci
+        bci.update({(u, v): delta1})
+        Gtemp.add_edge(u, v, data=d)
 
-def distance_impact(G):
+    return bc, bci
+
+def edge_impact(G, weight='weight'):
+    """
+    :param G:
+    :return: dict of betweenness centrality impacts
+    """
+    bc = list(nx.edge_betweenness_centrality(G, weight=weight).values())
+    sp = nx.average_shortest_path_length(G, weight=weight)
+    meanbc = sum(bc) / len(bc)
+    bci = {}
+    di = {}
+    Gtemp = G.copy(as_view=False)
+    for u, v, d in G.edges(data=True):
+        Gtemp.remove_edge(u, v)
+        # edges = [(x, y, d['weight']) for x, y, d in G.edges(data=True) if (x, y) != (u, v)]
+        # Gtemp.add_weighted_edges_from(edges)
+        gGe = np.mean(list(nx.edge_betweenness_centrality(Gtemp, weight=weight).values()))
+        delta1 = 1 - gGe / meanbc
+        try:
+            spe = nx.average_shortest_path_length(Gtemp, weight=weight)
+            delta2 = spe - sp
+        except:
+            delta2 = np.nan
+        bci.update({(u, v): delta1})
+        di.update({(u, v): delta2})
+        Gtemp.add_edge(u, v, data=d)
+
+    return bc, bci, di
+
+def distance_impact(G, weight='weight'):
     """
     :param G:
     :return: dict of betweenness centrality impacts
@@ -86,28 +116,30 @@ def distance_impact(G):
     sp = nx.average_shortest_path_length(G, weight='weight')
     bci = {}
     Gtemp = G.copy(as_view=False)
-    for u, v in G.edges():
-        Gtemp.clear_edges()
-        edges = [(x, y, d['weight']) for x, y, d in G.edges(data=True) if (x, y) != (u, v)]
-        Gtemp.add_weighted_edges_from(edges)
+    for u, v, d in G.edges(data=True):
+        Gtemp.remove_edge(u, v)
+        # edges = [(x, y, d['weight']) for x, y, d in G.edges(data=True) if (x, y) != (u, v)]
+        # Gtemp.add_weighted_edges_from(edges)
         try:
-            spe = nx.average_shortest_path_length(Gtemp, weight='weight')
+            spe = nx.average_shortest_path_length(Gtemp, weight=weight)
             delta = spe - sp
         except:
             delta = np.nan
         bci.update({(u, v): delta})
+        Gtemp.add_edge(u, v, data=d)
 
     return bci
 
 if __name__ == '__main__':
-    G = get_randomnetwork(10, 5, .7)
-    bci = betweenness_centrality_impact(G)
-    di = distance_impact(G)
-    # print(bci.values())
+    G = get_randomnetwork(10, 2, .7)
+    bc, bci, di = edge_impact(G)
+    print(di.values())
     # print(di.values())
     fig, ax = plt.subplots(ncols=2, nrows=1, sharex=True, sharey=True, subplot_kw={'aspect': 'equal'})
-    nx.draw_networkx(G, pos=nx.get_node_attributes(G, 'pos'), with_labels=False, edge_color=bci.values(), ax=ax[0],
-                     node_size=3, node_color='k', alpha=0.5, edge_cmap=plt.get_cmap('coolwarm'))
-    nx.draw_networkx(G, pos=nx.get_node_attributes(G, 'pos'), with_labels=False, edge_color=di.values(), ax=ax[1],
-                     node_size=3, node_color='k', alpha=0.5, edge_cmap=plt.get_cmap('coolwarm'))
+    ed = nx.draw_networkx_edges(G, pos=nx.get_node_attributes(G, 'pos'), edge_color=bci.values(), ax=ax[0],
+                     edge_cmap=plt.get_cmap('coolwarm'))
+    plt.colorbar(ed, ax=ax[0], location='bottom')
+    ed = nx.draw_networkx_edges(G, pos=nx.get_node_attributes(G, 'pos'), edge_color=di.values(), ax=ax[1],
+                     edge_cmap=plt.get_cmap('cool'))
+    plt.colorbar(ed, ax=ax[1], location='bottom')
     plt.show()
